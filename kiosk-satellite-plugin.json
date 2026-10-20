@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "apiVersion": 1,
+  "id": "jack-o-lantern-voice-skin",
+  "name": "Jack-o'-Lantern",
+  "version": "1.0.0",
+  "minAndroidSdk": 24,
+  "entryClass": "ca.ponderosa.jackolantern.JackOLanternPlugin",
+  "description": "A Halloween voice skin. The assistant is a scary jack-o'-lantern: its candle flickers in the dark, it leans in while you speak, swivels while it thinks and its jagged mouth moves with the answer.",
+  "author": "Ponderosa",
+  "license": "Apache-2.0",
+  "capabilities": ["overlay", "host.read", "voice.skin", "voice.text"],
+  "icon": "icon.png",
+  "voiceSkinThumbnail": "voice-skin.png",
+  "settings": [
+    {
+      "key": "pumpkinStyle",
+      "type": "select",
+      "title": "Pumpkin style",
+      "options": ["In the dark", "Whole pumpkin"],
+      "default": "In the dark",
+      "group": "Appearance",
+      "description": "In the dark shows only the candlelit eyes, nose and mouth on black. Whole pumpkin draws the shell and stem too."
+    }
+  ],
+  "commands": []
+}
