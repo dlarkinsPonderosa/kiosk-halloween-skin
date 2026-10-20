@@ -243,11 +243,17 @@ final class SkinController {
             face = new FaceView(context, docked);
             said = new TextView(context);
             answered = new TextView(context);
+            // The listening push-in carries the glow past the face's own square. Let it draw there
+            // instead of being cut off in a straight line.
+            setClipChildren(false);
+            setClipToPadding(false);
             int screenWidth = context.getResources().getDisplayMetrics().widthPixels;
             int screenHeight = context.getResources().getDisplayMetrics().heightPixels;
             if (docked) {
                 card = new LinearLayout(context);
                 card.setOrientation(LinearLayout.HORIZONTAL);
+                card.setClipChildren(false);
+                card.setClipToPadding(false);
                 card.setGravity(Gravity.CENTER_VERTICAL);
                 int faceSize = theme.px(80);
                 card.addView(face, new LinearLayout.LayoutParams(faceSize, faceSize));
@@ -268,6 +274,8 @@ final class SkinController {
                 answered.setGravity(Gravity.CENTER);
                 LinearLayout column = new LinearLayout(context);
                 column.setOrientation(LinearLayout.VERTICAL);
+                column.setClipChildren(false);
+                column.setClipToPadding(false);
                 column.setGravity(Gravity.CENTER);
                 int size = Math.round(Math.min(screenWidth, screenHeight) * 0.72f);
                 column.addView(face, new LinearLayout.LayoutParams(size, size));

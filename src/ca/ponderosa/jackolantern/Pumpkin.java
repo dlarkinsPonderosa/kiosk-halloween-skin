@@ -13,10 +13,12 @@ import android.os.Build;
 /**
  * A jack-o'-lantern drawn in code, one frame per call.
  *
- * Listening: it slowly pushes in and the candle flickers hard, flaring with
- * the user's voice. Thinking: it swivels side to side and the candle pulses.
- * Answering: the swivel eases back to face forward and the mouth opens with
- * the answer's voice.
+ * Listening: it slowly pushes in and cocks its head, and the candle flickers
+ * hard, flaring with the user's voice. Thinking: it ponders. The eyes glance
+ * up and to the side, one squints, the head tips the other way, the mouth
+ * tightens, the nose spins like a loading spinner and the candle pulses.
+ * Answering: the face settles back and the mouth opens with the answer's
+ * voice.
  *
  * The light is drawn in layers: a wide soft glow, a tight hot edge, the
  * candlelit inside, and a deeper orange just inside each cut. On Android 12
@@ -32,8 +34,10 @@ final class Pumpkin {
     private static final float[] LOBE_X = {-0.5f, 0.5f, -0.26f, 0.26f, 0f};
     private static final float[] LOBE_W = {0.5f, 0.5f, 0.52f, 0.52f, 0.46f};
     private static final float[] LOBE_H = {0.86f, 0.86f, 0.95f, 0.95f, 1f};
-    /** Swivel speed while thinking, in radians a second: one left-right cycle about every two seconds. */
-    private static final float SWIVEL = 3.2f;
+    /** The nose's spin while thinking, in radians a second: one turn a second. */
+    private static final float SPIN = (float) (Math.PI * 2);
+    /** A triangle looks the same every third of a turn, so the nose can stop at any of these. */
+    private static final float THIRD = (float) (Math.PI * 2 / 3);
     /**
      * Where the teeth sit along the mouth, from -1 at the left corner to 1 at
      * the right. Even places hang from the top, odd ones stand on the bottom,
@@ -68,10 +72,13 @@ final class Pumpkin {
     private GpuGlow middle;
     private GpuGlow tight;
     private float shaderCx = Float.NaN, shaderCy, shaderR;
-    /** The swivel angle. Its sine is the turn, so every multiple of pi faces forward. */
-    private float theta;
     private float glow = 0.7f;
+    /** 0 to 1: how far into the listening pose. */
     private float lean;
+    /** 0 to 1: how far into the pondering pose. */
+    private float ponder;
+    /** The nose's angle, in radians. */
+    private float spin;
     private long last;
 
     Pumpkin() {
@@ -100,15 +107,14 @@ final class Pumpkin {
         boolean thinking = "thinking".equals(phase);
         boolean answering = "answering".equals(phase);
 
-        // Swivel while thinking. Otherwise head back to the nearest forward-facing angle at twice the speed.
+        // The nose spins while thinking. After, it carries on to the next point-up angle and stops there.
         if (thinking) {
-            theta += dt * SWIVEL;
-        } else if (theta != 0) {
-            float forward = (float) (Math.round(theta / Math.PI) * Math.PI);
-            float step = dt * SWIVEL * 2;
-            theta = Math.abs(forward - theta) <= step ? 0 : theta + Math.signum(forward - theta) * step;
+            spin += dt * SPIN;
+        } else if (spin != 0) {
+            float next = (float) Math.ceil(spin / THIRD - 1e-4f) * THIRD;
+            float step = dt * SPIN;
+            spin = next - spin <= step ? 0 : spin + step;
         }
-        float turn = (float) Math.sin(theta);
 
         // The candle: a flicker that never repeats exactly, with now and then a
         // deep dip as the flame gutters. Brighter while listening or answering.
@@ -125,8 +131,9 @@ final class Pumpkin {
         float bright = Math.min(1, t);
         // A slow push in while listening, as if intent on what is said.
         lean += ((listening ? 1 : 0) - lean) * 0.06f;
-        // The mouth follows only the answer. Listening it hangs a little open.
-        float open = answering ? Math.min(1, level * 1.5f) : listening ? 0.08f : 0.02f;
+        ponder += ((thinking ? 1 : 0) - ponder) * 0.08f;
+        // The mouth follows only the answer. Listening it hangs a little open; pondering it shuts tight.
+        float open = answering ? Math.min(1, level * 1.5f) : listening ? 0.08f : thinking ? 0 : 0.02f;
 
         float size = Math.min(width, height);
         // In the dark there is no shell to fit, so the carved face can be much larger.
@@ -134,7 +141,7 @@ final class Pumpkin {
         float hh = r * 0.8f;
         float cx = width / 2f;
         float cy = height / 2f + r * 0.1f;
-        float scale = 1 + 0.2f * lean;
+        float scale = 1 + 0.45f * lean;
         // Lengths after the push in, for blur radii and line widths.
         float rs = r * scale;
 
@@ -144,31 +151,31 @@ final class Pumpkin {
             canvas.drawCircle(cx, cy, r * 1.6f, halo);
         }
 
-        // Bob, sway and push in. Applied to the canvas for the shell and to the paths for the light.
+        // Bob, sway, push in, and tilt: listening cocks the head one way, pondering tips it the other.
+        // Applied to the canvas for the shell and to the paths for the light.
         place.reset();
         place.postScale(scale, scale, cx, cy);
-        place.postRotate(2f * (float) Math.sin(now / 1700.0) + turn * 4f, cx, cy + hh);
+        place.postRotate(2f * (float) Math.sin(now / 1700.0) + 10f * lean - 6f * ponder, cx, cy + hh);
         place.postTranslate(0, r * 0.02f * (float) Math.sin(now / 1100.0));
 
         if (!inTheDark) {
             canvas.save();
             canvas.concat(place);
-            drawStem(canvas, cx + turn * 0.12f * r, cy - hh, r);
-            drawBody(canvas, cx, cy, r, hh, turn);
+            drawStem(canvas, cx, cy - hh, r);
+            drawBody(canvas, cx, cy, r, hh);
             canvas.restore();
         }
 
-        // The carved face slides toward the turn and narrows, which reads as the head turning.
-        float fx = cx + turn * 0.3f * r;
-        float squeeze = 1 - 0.3f * Math.abs(turn);
-        buildEye(eyeLeft, -1, fx, cy, r, squeeze, turn);
-        buildEye(eyeRight, 1, fx, cy, r, squeeze, turn);
-        nose.reset();
-        nose.moveTo(fx, cy);
-        nose.lineTo(fx - 0.08f * r * squeeze, cy + 0.12f * r);
-        nose.lineTo(fx + 0.08f * r * squeeze, cy + 0.12f * r);
-        nose.close();
-        buildMouth(fx, cy, r, squeeze, open);
+        // Pondering, the eyes glance up and to the right and wander a little. The nose and
+        // mouth follow less, which gives the face some depth.
+        float glance = ponder * r * (0.12f + 0.03f * (float) Math.sin(now / 700.0));
+        float lift = ponder * r * (0.06f + 0.015f * (float) Math.sin(now / 1100.0));
+        // The right eye squints; the left opens a touch wider.
+        buildEye(eyeLeft, -1, cx + glance, cy - lift, r, 1 + 0.08f * ponder);
+        buildEye(eyeRight, 1, cx + glance, cy - lift, r, 1 - 0.45f * ponder);
+        buildNose(cx + glance * 0.5f, cy, r);
+        // A tight, narrower grimace while pondering.
+        buildMouth(cx + glance * 0.3f, cy, r, 1 - 0.12f * ponder, open);
         for (Path hole : holes) hole.transform(place);
 
         drawGlow(canvas, width, height, rs, bright, inTheDark);
@@ -234,19 +241,35 @@ final class Pumpkin {
         }
     }
 
-    /** An angry eye: a crescent pointed at both ends, its top edge sloping down toward the nose like a frown. */
-    private void buildEye(Path eye, int side, float fx, float cy, float r, float squeeze, float turn) {
-        float ex = fx + side * 0.36f * r * squeeze;
+    /**
+     * An angry eye: a crescent pointed at both ends, its top edge sloping down toward the nose like a frown.
+     * @param tall 1 for a normal eye, less to squint, more to open wide
+     */
+    private void buildEye(Path eye, int side, float fx, float cy, float r, float tall) {
+        float ex = fx + side * 0.36f * r;
         float ey = cy - 0.2f * r;
-        // The eye nearer the viewer looks bigger as the head turns.
-        float e = r * 0.21f * (1 + 0.15f * turn * side);
-        float outerX = ex + side * 1.05f * e * squeeze, outerY = ey - 0.62f * e;
-        float innerX = ex - side * 1.0f * e * squeeze, innerY = ey + 0.22f * e;
+        float e = r * 0.21f;
+        float outerX = ex + side * 1.05f * e, outerY = ey - 0.62f * e * tall;
+        float innerX = ex - side * 1.0f * e, innerY = ey + 0.22f * e * tall;
         eye.reset();
         eye.moveTo(outerX, outerY);
         eye.lineTo(innerX, innerY);
-        eye.quadTo(ex + side * 0.15f * e * squeeze, ey + 1.0f * e, outerX, outerY);
+        eye.quadTo(ex + side * 0.15f * e, ey + 1.0f * e * tall, outerX, outerY);
         eye.close();
+    }
+
+    /** A small triangle, point up when still, spun about its own centre a third of the way up from its base. */
+    private void buildNose(float x, float cy, float r) {
+        float centreY = cy + 0.08f * r;
+        float cos = (float) Math.cos(spin), sin = (float) Math.sin(spin);
+        float[] corners = {x, cy, x - 0.08f * r, cy + 0.12f * r, x + 0.08f * r, cy + 0.12f * r};
+        nose.reset();
+        for (int i = 0; i < corners.length; i += 2) {
+            float dx = corners[i] - x, dy = corners[i + 1] - centreY;
+            float px = x + dx * cos - dy * sin, py = centreY + dx * sin + dy * cos;
+            if (i == 0) nose.moveTo(px, py); else nose.lineTo(px, py);
+        }
+        nose.close();
     }
 
     /**
@@ -293,7 +316,7 @@ final class Pumpkin {
         canvas.drawPath(stemPath, stem);
     }
 
-    private void drawBody(Canvas canvas, float cx, float cy, float r, float hh, float turn) {
+    private void drawBody(Canvas canvas, float cx, float cy, float r, float hh) {
         if (cx != shaderCx || cy != shaderCy || r != shaderR) {
             // Lit from the upper left, darker toward the edges.
             body.setShader(new RadialGradient(cx - 0.25f * r, cy - 0.35f * r, 1.5f * r,
@@ -305,8 +328,7 @@ final class Pumpkin {
         }
         rib.setStrokeWidth(r * 0.02f);
         for (int i = 0; i < LOBE_X.length; i++) {
-            // Inner lobes shift more than outer ones as the head turns.
-            float x = cx + LOBE_X[i] * r + turn * 0.1f * r * (1 - Math.abs(LOBE_X[i]));
+            float x = cx + LOBE_X[i] * r;
             float w = LOBE_W[i] * r;
             float h = LOBE_H[i] * hh;
             canvas.drawOval(x - w, cy - h, x + w, cy + h, body);

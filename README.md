@@ -6,9 +6,9 @@ A Halloween voice skin for [Kiosk Satellite](https://github.com/jxlarrea/kiosk-s
 | --- | --- |
 | ![The In the dark style: only the candlelit eyes, nose and jagged mouth glowing on black](assets/voice-skin.png) | ![The Whole pumpkin style: an orange pumpkin with stem, its carved face lit from inside](docs/whole-pumpkin.png) |
 
-- **Listening:** the candle flickers hard and the face slowly pushes in, as if hanging on every word. Your voice makes the flame flare.
-- **Thinking:** the head swivels side to side while the light pulses.
-- **Answering:** it turns back to face you and its jagged mouth opens and closes with the answer.
+- **Listening:** the candle flickers hard and the face slowly pushes in and cocks its head, as if hanging on every word. Your voice makes the flame flare.
+- **Thinking:** it ponders. The eyes glance up and to the side, one squints, the mouth tightens and the nose spins like a loading spinner while the light pulses.
+- **Answering:** it settles back to face you and its jagged mouth opens and closes with the answer.
 
 What you said and the answer show under the face, as with the built-in skins. Docked overlay mode shows a small pumpkin beside the conversation.
 
