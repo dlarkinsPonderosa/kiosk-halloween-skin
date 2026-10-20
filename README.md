@@ -19,10 +19,23 @@ What you said and the answer show under the face, as with the built-in skins. Do
 
 ## Installation
 
+### Community Plugins (Recommended)
+
+Jack-o'-Lantern is listed in [Community Plugins](https://kiosksatellite.com/plugins/). Use the button below to open it in your Kiosk Satellite and install it.
+
+[![Install in Kiosk Satellite](https://kiosksatellite.com/img/badges/plugin-add.svg)](https://kiosksatellite.com/redirect/plugin/?repository=dlarkinsPonderosa/kiosk-halloween-skin)
+
+Or search for `Jack-o'-Lantern` in **Settings > Plugin Manager > Browse plugins** in Kiosk Satellite.
+
+### Manual
+
 1. Open **Settings > Plugin Manager** in Kiosk Satellite and turn on **Enable Plugins**.
 2. Choose **Add plugin**, paste `https://github.com/dlarkinsPonderosa/kiosk-halloween-skin` and choose **Preview**.
 3. Review the plugin and choose **Trust and install**, then enable it.
-4. Open **Settings > Voice Satellite > Appearance > Skin** and pick **Jack-o'-Lantern**. **Preview** shows it for five seconds.
+
+### Pick the skin
+
+Open **Settings > Voice Satellite > Appearance > Skin** and pick **Jack-o'-Lantern**. **Preview** shows it for five seconds.
 
 When Halloween is over, pick your usual skin again.
 
