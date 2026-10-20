@@ -57,6 +57,9 @@ final class SkinController {
     volatile boolean inTheDark = true;
     /** The showing view. Touched on the main thread only. */
     private SkinView view;
+    /** What each look has learned about this device's speed. Kept across turns: each turn builds a new view. */
+    private final FrameBudget fullBudget = new FrameBudget();
+    private final FrameBudget dockedBudget = new FrameBudget();
 
     synchronized void start(PluginHost host) {
         this.host = host;
@@ -339,12 +342,13 @@ final class SkinController {
         /** The face, redrawn every frame. Eases toward the latest level so 30 readings a second still move smoothly. */
         private final class FaceView extends View {
             private final boolean small;
-            private final Pumpkin pumpkin = new Pumpkin();
+            private final Pumpkin pumpkin;
             private float shown;
 
             FaceView(Context context, boolean small) {
                 super(context);
                 this.small = small;
+                pumpkin = new Pumpkin(small ? dockedBudget : fullBudget);
             }
 
             @Override protected void onDraw(Canvas canvas) {

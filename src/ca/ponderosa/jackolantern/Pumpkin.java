@@ -48,8 +48,15 @@ final class Pumpkin {
     private static final float[] CORNER_LEFT = {-0.94f, -0.86f, -0.78f};
     /** The narrowest band of light left between the rows of teeth, as a share of the pumpkin's half width. */
     private static final float BAND = 0.06f;
-    /** Stacked outlines that stand in for the blur on older devices. */
-    private static final int STEPS = 14;
+    /**
+     * Stacked outlines that stand in for the blur on older devices, by
+     * quality level. A device that can't keep up steps down to fewer,
+     * stronger outlines.
+     */
+    private static final int[] STEPS = {4, 8, 14};
+    /** The inner edge's strokes by quality level: widths, then how strong each is. */
+    private static final float[][] EDGE_WIDTHS = {{0.05f}, {0.1f, 0.06f, 0.03f}, {0.12f, 0.1f, 0.08f, 0.06f, 0.04f, 0.02f}};
+    private static final float[][] EDGE_ALPHAS = {{0.4f}, {0.22f, 0.28f, 0.38f}, {0.12f, 0.12f, 0.13f, 0.15f, 0.18f, 0.22f}};
     private static final boolean GPU_BLUR = Build.VERSION.SDK_INT >= 31;
 
     private final Paint body = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -79,9 +86,14 @@ final class Pumpkin {
     private float ponder;
     /** The nose's angle, in radians. */
     private float spin;
+    /** How much glow detail this device can draw smoothly, kept across turns. */
+    private final FrameBudget budget;
+    /** This frame's quality: 2 is full, 1 and 0 for devices too slow to draw it smoothly. */
+    private int quality = 2;
     private long last;
 
-    Pumpkin() {
+    Pumpkin(FrameBudget budget) {
+        this.budget = budget;
         rib.setStyle(Paint.Style.STROKE);
         rib.setColor(0x558A3A05);
         stem.setColor(0xFF5A6B2C);
@@ -101,8 +113,12 @@ final class Pumpkin {
      * @param inTheDark only the lit cutouts on black, with no shell, stem or skin
      */
     void draw(Canvas canvas, int width, int height, float level, String phase, long now, boolean withHalo, boolean inTheDark) {
-        float dt = last == 0 ? 0 : Math.min(0.1f, (now - last) / 1000f);
+        // A gap of more than a quarter second means the face was hidden, not that the device is slow.
+        boolean fresh = last == 0 || now - last > 250;
+        float dt = fresh ? 0 : (now - last) / 1000f;
         last = now;
+        budget.frame(dt, fresh);
+        quality = budget.quality();
         boolean listening = "listening".equals(phase);
         boolean thinking = "thinking".equals(phase);
         boolean answering = "answering".equals(phase);
@@ -215,10 +231,14 @@ final class Pumpkin {
             return;
         }
         // Widest and faintest first. Each outline adds to the ones inside it, so the light falls off away from the cut.
-        for (int k = STEPS; k >= 1; k--) {
-            float share = k / (float) STEPS;
-            glowLine.setColor(k <= 4 ? tightColor : wideColor);
-            glowLine.setAlpha(Math.round(255 * bright * (k <= 4 ? 0.15f : 0.06f)));
+        // Fewer outlines each get stronger, so the glow keeps about the same brightness at every quality.
+        int steps = STEPS[quality];
+        int hot = Math.max(1, Math.round(steps * 2 / 7f));
+        float boost = 14f / steps;
+        for (int k = steps; k >= 1; k--) {
+            float share = k / (float) steps;
+            glowLine.setColor(k <= hot ? tightColor : wideColor);
+            glowLine.setAlpha(Math.round(255 * Math.min(1, bright * boost * (k <= hot ? 0.15f : 0.06f))));
             glowLine.setStrokeWidth(rs * 0.34f * share);
             for (Path hole : holes) canvas.drawPath(hole, glowLine);
         }
@@ -227,8 +247,8 @@ final class Pumpkin {
     /** A deeper orange just inside each cut, fading toward the middle, so the holes look carved through a thick shell. */
     private void drawInnerEdge(Canvas canvas, float rs, float bright) {
         edge.setColor(Color.rgb(255, 120, 20));
-        float[] widths = {0.12f, 0.1f, 0.08f, 0.06f, 0.04f, 0.02f};
-        float[] alphas = {0.12f, 0.12f, 0.13f, 0.15f, 0.18f, 0.22f};
+        float[] widths = EDGE_WIDTHS[quality];
+        float[] alphas = EDGE_ALPHAS[quality];
         for (Path hole : holes) {
             canvas.save();
             canvas.clipPath(hole);
