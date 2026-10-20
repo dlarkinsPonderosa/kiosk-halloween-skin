@@ -2,7 +2,9 @@
 
 A Halloween voice skin for [Kiosk Satellite](https://github.com/jxlarrea/kiosk-satellite). While it is picked, the assistant is a scary jack-o'-lantern instead of the usual overlay.
 
-![Jack-o'-Lantern voice skin](assets/voice-skin.png)
+| In the dark (default) | Whole pumpkin |
+| --- | --- |
+| ![The In the dark style: only the candlelit eyes, nose and jagged mouth glowing on black](assets/voice-skin.png) | ![The Whole pumpkin style: an orange pumpkin with stem, its carved face lit from inside](docs/whole-pumpkin.png) |
 
 - **Listening:** the candle flickers hard and the face slowly pushes in, as if hanging on every word. Your voice makes the flame flare.
 - **Thinking:** the head swivels side to side while the light pulses.
@@ -42,7 +44,7 @@ GitHub Actions builds a test ZIP on every push (**Actions > Build**) for **Plugi
 
 To build locally: Python 3, JDK 17 or newer and an Android SDK with `platforms;android-35` and `build-tools;35.0.0`, then `python3 tools/build.py --android-platform 35`.
 
-`tools/render_art.py` redraws the icon and the Skin picker thumbnail from the same face geometry as `Pumpkin.java`.
+`tools/render_art.py` redraws the icon, the Skin picker thumbnail and the README pictures from the same geometry as `Pumpkin.java`.
 
 The SDK under `sdk/` and the build tools under `tools/` come from [kiosk-satellite-plugins](https://github.com/jxlarrea/kiosk-satellite-plugins) (Apache-2.0).
 
