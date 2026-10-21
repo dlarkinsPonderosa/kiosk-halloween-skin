@@ -55,6 +55,8 @@ final class SkinController {
     volatile boolean reactive = true;
     /** Only the lit cutouts on black. */
     volatile boolean inTheDark = true;
+    /** The Animation quality setting: Auto, High, Low or Off. */
+    volatile String quality = "Auto";
     /** The showing view. Touched on the main thread only. */
     private SkinView view;
     /** What each look has learned about this device's speed. Kept across turns: each turn builds a new view. */
@@ -104,6 +106,8 @@ final class SkinController {
 
     synchronized void configure(Map<String, Object> settings) {
         inTheDark = !"Whole pumpkin".equals(settings.get("pumpkinStyle"));
+        Object chosen = settings.get("animationQuality");
+        quality = chosen instanceof String ? (String) chosen : "Auto";
         restyleLater();
     }
 
@@ -339,7 +343,11 @@ final class SkinController {
             answered.setVisibility(answer.isEmpty() && tool.isEmpty() ? GONE : VISIBLE);
         }
 
-        /** The face, redrawn every frame. Eases toward the latest level so 30 readings a second still move smoothly. */
+        /**
+         * The face, redrawn every frame, or about 30 times a second where the
+         * Pumpkin asks for that. Eases toward the latest level so 30 readings a
+         * second still move smoothly.
+         */
         private final class FaceView extends View {
             private final boolean small;
             private final Pumpkin pumpkin;
@@ -354,8 +362,9 @@ final class SkinController {
             @Override protected void onDraw(Canvas canvas) {
                 // With Reactive activity bar off nothing follows the voice. KS sends 0 then too.
                 shown += ((reactive ? level : 0) - shown) * 0.3f;
-                pumpkin.draw(canvas, getWidth(), getHeight(), shown, phase(), SystemClock.uptimeMillis(), !small, inTheDark);
-                postInvalidateOnAnimation();
+                pumpkin.draw(canvas, getWidth(), getHeight(), shown, phase(), SystemClock.uptimeMillis(), !small, inTheDark, quality);
+                if (pumpkin.capped()) postInvalidateDelayed(33);
+                else postInvalidateOnAnimation();
             }
         }
     }

@@ -2,10 +2,10 @@
 package ca.ponderosa.jackolantern;
 
 /**
- * How much glow detail a device can draw smoothly, learned from its own frame
- * times. Kept by SkinController for as long as the plugin runs, so what one
- * turn learns carries into the next: a new overlay view is built for every
- * turn.
+ * How much glow a device can draw smoothly, learned from its own frame times,
+ * for the Auto setting. Kept by SkinController for as long as the plugin
+ * runs, so what one turn learns carries into the next: a new overlay view is
+ * built for every turn.
  *
  * Only frames while the face is on screen count. After about 45 of them at
  * one level, an average below 30 frames a second drops a level. After 3600
@@ -14,11 +14,11 @@ package ca.ponderosa.jackolantern;
  * the device. Once it has had to step down twice it stays down.
  */
 final class FrameBudget {
-    /** 2 is full quality; 1 and 0 are for devices too slow to draw it smoothly. */
+    /** 2 is the full glow; 1 is the Low glow; 0 is the Low glow at 30 frames a second. */
     private int quality = 2;
     /** The average time between frames, in seconds. */
     private float frameTime;
-    /** Frames seen at this quality. */
+    /** Frames seen at this level. */
     private int frames;
     /** How many times it has stepped down. */
     private int strikes;

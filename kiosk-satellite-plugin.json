@@ -3,7 +3,7 @@
   "apiVersion": 1,
   "id": "jack-o-lantern-voice-skin",
   "name": "Jack-o'-Lantern",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "minAndroidSdk": 24,
   "entryClass": "ca.ponderosa.jackolantern.JackOLanternPlugin",
   "description": "A Halloween voice skin. The assistant is a scary jack-o'-lantern: its candle flickers in the dark, it leans in and cocks its head while you speak, ponders with a squint and a spinning nose while it thinks, and its jagged mouth moves with the answer.",
@@ -21,6 +21,15 @@
       "default": "In the dark",
       "group": "Appearance",
       "description": "In the dark shows only the candlelit eyes, nose and mouth on black. Whole pumpkin draws the shell and stem too."
+    },
+    {
+      "key": "animationQuality",
+      "type": "select",
+      "title": "Animation quality",
+      "options": ["Auto", "High", "Low", "Off"],
+      "default": "Auto",
+      "group": "Appearance",
+      "description": "How much glow to draw. Auto starts with the full glow and switches to a lighter one on devices too slow to keep up. High always draws the full glow. Low always draws the lighter glow at 30 frames a second, for slow devices such as the Echo Show. Off draws no glow."
     }
   ],
   "commands": []

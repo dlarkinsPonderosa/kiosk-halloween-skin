@@ -44,6 +44,7 @@ When Halloween is over, pick your usual skin again.
 | Setting | What it does |
 | --- | --- |
 | Pumpkin style | **In the dark** (default) shows only the candlelit eyes, nose and mouth on black. **Whole pumpkin** draws the orange shell and stem too. |
+| Animation quality | **Auto** (default) starts with the full glow and switches to a lighter one, then to 30 frames a second, if the device can't keep up. **High** always draws the full glow. **Low** always draws the lighter glow at 30 frames a second; pick it for slow devices such as the Echo Show 5. **Off** draws no glow. |
 
 The skin also follows **Voice Satellite > Appearance**: Theme and Background apply to Whole pumpkin, Text size scales the conversation, and with Reactive activity bar off nothing moves with the voice.
 

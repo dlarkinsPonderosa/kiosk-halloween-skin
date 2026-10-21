@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 package ca.ponderosa.jackolantern;
 
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RadialGradient;
+import android.graphics.Rect;
+import android.graphics.RectF;
 import android.graphics.Shader;
 import android.os.Build;
 
@@ -23,7 +26,8 @@ import android.os.Build;
  * The light is drawn in layers: a wide soft glow, a tight hot edge, the
  * candlelit inside, and a deeper orange just inside each cut. On Android 12
  * and later the glow is blurred on the GPU; older devices build it from
- * stacked outlines instead.
+ * stacked outlines instead. Slow devices, and the Low setting, use a cheap
+ * glow made by stretching small images back up.
  *
  * Kept apart from SkinController so a set of rendered frames can replace it
  * without touching anything else. tools/render_art.py draws the icon and
@@ -48,15 +52,27 @@ final class Pumpkin {
     private static final float[] CORNER_LEFT = {-0.94f, -0.86f, -0.78f};
     /** The narrowest band of light left between the rows of teeth, as a share of the pumpkin's half width. */
     private static final float BAND = 0.06f;
+    /** Stacked outlines that stand in for the blur on older devices. */
+    private static final int STEPS = 14;
+    /** The glow's looks: none, the cheap Low glow, or the full glow (GPU blur or stacked outlines). */
+    private static final int OFF = 0, LOW = 1, FULL = 2;
+    /** The inner edge's strokes, full and cheap: widths, then how strong each is. */
+    private static final float[] EDGE_WIDTHS = {0.12f, 0.1f, 0.08f, 0.06f, 0.04f, 0.02f};
+    private static final float[] EDGE_ALPHAS = {0.12f, 0.12f, 0.13f, 0.15f, 0.18f, 0.22f};
+    private static final float[] CHEAP_EDGE_WIDTHS = {0.09f, 0.04f};
+    private static final float[] CHEAP_EDGE_ALPHAS = {0.2f, 0.3f};
+    /** The Low glow's images, as fractions of the face: a quarter, halved again and again. */
+    private static final int[] DIVS = {4, 8, 16, 32, 64};
     /**
-     * Stacked outlines that stand in for the blur on older devices, by
-     * quality level. A device that can't keep up steps down to fewer,
-     * stronger outlines.
+     * The Low glow's layers, widest first: which image, and how strong.
+     * The smallest is drawn twice, because shrinking thin shapes spreads
+     * their light thin. The image nearest full size is left out so the cut
+     * edges stay crisp.
      */
-    private static final int[] STEPS = {4, 8, 14};
-    /** The inner edge's strokes by quality level: widths, then how strong each is. */
-    private static final float[][] EDGE_WIDTHS = {{0.05f}, {0.1f, 0.06f, 0.03f}, {0.12f, 0.1f, 0.08f, 0.06f, 0.04f, 0.02f}};
-    private static final float[][] EDGE_ALPHAS = {{0.4f}, {0.22f, 0.28f, 0.38f}, {0.12f, 0.12f, 0.13f, 0.15f, 0.18f, 0.22f}};
+    private static final int[] LAYER_IMAGE = {4, 4, 3, 2, 1};
+    private static final float[] LAYER_ALPHA = {0.8f, 0.8f, 0.65f, 0.35f, 0.12f};
+    /** An image smaller than this across is only a smear, and tints the whole face's square. */
+    private static final int SMALLEST = 16;
     private static final boolean GPU_BLUR = Build.VERSION.SDK_INT >= 31;
 
     private final Paint body = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -86,10 +102,19 @@ final class Pumpkin {
     private float ponder;
     /** The nose's angle, in radians. */
     private float spin;
-    /** How much glow detail this device can draw smoothly, kept across turns. */
+    /** How much glow this device can draw smoothly, kept across turns. Used on Auto. */
     private final FrameBudget budget;
-    /** This frame's quality: 2 is full, 1 and 0 for devices too slow to draw it smoothly. */
-    private int quality = 2;
+    /** This frame's glow look: OFF, LOW or FULL. */
+    private int look = FULL;
+    /** Whether the face should redraw only about 30 times a second. */
+    private boolean capped;
+    private final Bitmap[] images = new Bitmap[DIVS.length];
+    private final Canvas[] imageCanvases = new Canvas[DIVS.length];
+    private final Paint lowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint smooth = new Paint(Paint.FILTER_BITMAP_FLAG);
+    private final Rect from = new Rect();
+    private final Rect to = new Rect();
+    private final RectF stretched = new RectF();
     private long last;
 
     Pumpkin(FrameBudget budget) {
@@ -104,6 +129,13 @@ final class Pumpkin {
         cut.setColor(0xFF7A3205);
         edge.setStyle(Paint.Style.STROKE);
         edge.setStrokeJoin(Paint.Join.ROUND);
+        lowPaint.setStyle(Paint.Style.FILL_AND_STROKE);
+        lowPaint.setStrokeJoin(Paint.Join.ROUND);
+    }
+
+    /** Whether the last frame asked to be followed only about a 30th of a second later, instead of on the next screen refresh. */
+    boolean capped() {
+        return capped;
     }
 
     /**
@@ -111,14 +143,26 @@ final class Pumpkin {
      * @param phase listening, thinking, answering or resting
      * @param withHalo the full screen look, as opposed to the small docked face
      * @param inTheDark only the lit cutouts on black, with no shell, stem or skin
+     * @param quality the Animation quality setting: Auto, High, Low or Off
      */
-    void draw(Canvas canvas, int width, int height, float level, String phase, long now, boolean withHalo, boolean inTheDark) {
+    void draw(Canvas canvas, int width, int height, float level, String phase, long now, boolean withHalo, boolean inTheDark, String quality) {
         // A gap of more than a quarter second means the face was hidden, not that the device is slow.
         boolean fresh = last == 0 || now - last > 250;
         float dt = fresh ? 0 : (now - last) / 1000f;
         last = now;
-        budget.frame(dt, fresh);
-        quality = budget.quality();
+        if ("High".equals(quality)) {
+            look = FULL;
+            capped = false;
+        } else if ("Low".equals(quality) || "Off".equals(quality)) {
+            look = "Low".equals(quality) ? LOW : OFF;
+            capped = true;
+        } else {
+            // Auto: full until the device shows it can't keep up, then Low, then Low at 30 frames a second.
+            budget.frame(dt, fresh);
+            int step = budget.quality();
+            look = step == 2 ? FULL : LOW;
+            capped = step == 0;
+        }
         boolean listening = "listening".equals(phase);
         boolean thinking = "thinking".equals(phase);
         boolean answering = "answering".equals(phase);
@@ -214,6 +258,11 @@ final class Pumpkin {
     private void drawGlow(Canvas canvas, int width, int height, float rs, float bright, boolean inTheDark) {
         int wideColor = inTheDark ? Color.rgb(255, 140, 30) : Color.rgb(255, 170, 60);
         int tightColor = Color.rgb(255, 120, 20);
+        if (look == OFF) return;
+        if (look == LOW) {
+            drawLowGlow(canvas, width, height, rs, bright, wideColor);
+            return;
+        }
         if (GPU_BLUR && canvas.isHardwareAccelerated()) {
             if (wide == null) {
                 wide = new GpuGlow();
@@ -231,24 +280,69 @@ final class Pumpkin {
             return;
         }
         // Widest and faintest first. Each outline adds to the ones inside it, so the light falls off away from the cut.
-        // Fewer outlines each get stronger, so the glow keeps about the same brightness at every quality.
-        int steps = STEPS[quality];
-        int hot = Math.max(1, Math.round(steps * 2 / 7f));
-        float boost = 14f / steps;
-        for (int k = steps; k >= 1; k--) {
-            float share = k / (float) steps;
-            glowLine.setColor(k <= hot ? tightColor : wideColor);
-            glowLine.setAlpha(Math.round(255 * Math.min(1, bright * boost * (k <= hot ? 0.15f : 0.06f))));
-            glowLine.setStrokeWidth(rs * 0.34f * share);
+        for (int k = STEPS; k >= 1; k--) {
+            boolean hot = k <= 4;
+            glowLine.setColor(hot ? tightColor : wideColor);
+            glowLine.setAlpha(Math.round(255 * bright * (hot ? 0.15f : 0.06f)));
+            glowLine.setStrokeWidth(rs * 0.34f * k / STEPS);
             for (Path hole : holes) canvas.drawPath(hole, glowLine);
         }
+    }
+
+    /**
+     * The glow for slow devices: the cuts drawn once into an image a quarter
+     * the size of the face, halved again and again down to a sixty-fourth.
+     * Stretched back up with plain bitmap filtering, each image spreads its
+     * light about as far as one of its own pixels, so the smallest make the
+     * wide halo and the larger ones the glow near the cut. About a sixteenth
+     * of the pixels of the full glow, and the stretching does the blurring.
+     * The images reach a quarter of the face past each side, so the glow
+     * isn't cut off when the face leans in.
+     */
+    private void drawLowGlow(Canvas canvas, int width, int height, float rs, float bright, int color) {
+        float margin = Math.min(width, height) * 0.25f;
+        float spanW = width + 2 * margin, spanH = height + 2 * margin;
+        for (int i = 0; i < DIVS.length; i++) {
+            int w = Math.max(1, (int) Math.ceil(spanW / DIVS[i]));
+            int h = Math.max(1, (int) Math.ceil(spanH / DIVS[i]));
+            if (images[i] == null || images[i].getWidth() != w || images[i].getHeight() != h) {
+                if (images[i] != null) images[i].recycle();
+                images[i] = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+                imageCanvases[i] = new Canvas(images[i]);
+            }
+        }
+        Bitmap first = images[0];
+        first.eraseColor(Color.TRANSPARENT);
+        Canvas quarter = imageCanvases[0];
+        quarter.save();
+        quarter.scale(first.getWidth() / spanW, first.getHeight() / spanH);
+        quarter.translate(margin, margin);
+        lowPaint.setColor(color);
+        lowPaint.setStrokeWidth(rs * 0.08f);
+        for (Path hole : holes) quarter.drawPath(hole, lowPaint);
+        quarter.restore();
+        smooth.setAlpha(255);
+        for (int i = 1; i < DIVS.length; i++) {
+            images[i].eraseColor(Color.TRANSPARENT);
+            from.set(0, 0, images[i - 1].getWidth(), images[i - 1].getHeight());
+            to.set(0, 0, images[i].getWidth(), images[i].getHeight());
+            imageCanvases[i].drawBitmap(images[i - 1], from, to, smooth);
+        }
+        stretched.set(-margin, -margin, width + margin, height + margin);
+        for (int k = 0; k < LAYER_IMAGE.length; k++) {
+            Bitmap image = images[LAYER_IMAGE[k]];
+            if (Math.min(image.getWidth(), image.getHeight()) < SMALLEST) continue;
+            smooth.setAlpha(Math.round(255 * bright * LAYER_ALPHA[k]));
+            canvas.drawBitmap(image, null, stretched, smooth);
+        }
+        smooth.setAlpha(255);
     }
 
     /** A deeper orange just inside each cut, fading toward the middle, so the holes look carved through a thick shell. */
     private void drawInnerEdge(Canvas canvas, float rs, float bright) {
         edge.setColor(Color.rgb(255, 120, 20));
-        float[] widths = EDGE_WIDTHS[quality];
-        float[] alphas = EDGE_ALPHAS[quality];
+        float[] widths = look == FULL ? EDGE_WIDTHS : CHEAP_EDGE_WIDTHS;
+        float[] alphas = look == FULL ? EDGE_ALPHAS : CHEAP_EDGE_ALPHAS;
         for (Path hole : holes) {
             canvas.save();
             canvas.clipPath(hole);
