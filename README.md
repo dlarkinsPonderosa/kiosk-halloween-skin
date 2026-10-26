@@ -14,7 +14,7 @@ What you said and the answer show under the face, as with the built-in skins. Do
 
 ## Requirements
 
-- A Kiosk Satellite version with plugin voice skins
+- Kiosk Satellite 2026.10.30 or later (the first release with plugin voice skins)
 - The native Voice Satellite runtime turned on. Skins draw only its turns.
 
 ## Installation
